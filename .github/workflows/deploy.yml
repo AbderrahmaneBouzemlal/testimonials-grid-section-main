@@ -1,5 +1,7 @@
 name: Deploy Vite App
 
+# Trigger the workflow on pushes to main and pull requests targeting main
+# This ensures we test PRs before they're merged
 on:
   push:
     branches: [main]
@@ -7,47 +9,74 @@ on:
     branches: [main]
 
 jobs:
+  # First job: Build the application and prepare artifacts
   build-and-deploy:
     runs-on: ubuntu-latest
-
     steps:
+      # Checkout the repository code using the latest version
+      # v4 includes improved Git LFS support and better performance
       - name: Checkout code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
+      # Setup Node.js environment with enhanced caching capabilities
+      # v4 includes better cache hit rates and supports more package managers
       - name: Setup Node.js
-        uses: actions/setup-node@v3
+        uses: actions/setup-node@v4
         with:
           node-version: "18"
           cache: "npm"
+          # Optional: specify cache-dependency-path if your package.json is not in root
+          # cache-dependency-path: './package-lock.json'
 
+      # Install dependencies using npm ci for reproducible builds
+      # npm ci is faster and more reliable than npm install for CI environments
       - name: Install dependencies
         run: npm ci
 
+      # Run tests to ensure code quality before deployment
+      # You might want to add a condition to skip this if no tests exist
       - name: Run tests (if any)
         run: npm test
+        # Optional: continue on error if you want to deploy even if tests fail
+        # continue-on-error: true
 
+      # Build the Vite application for production
+      # This creates optimized, minified assets in the dist/ directory
       - name: Build application
         run: npm run build
 
+      # Upload the built application as a GitHub Pages artifact
+      # v2 includes better compression and faster uploads
       - name: Upload build artifacts
-        uses: actions/upload-pages-artifact@v1
+        uses: actions/upload-pages-artifact@v2
         with:
           path: dist/
 
+  # Second job: Deploy the built application to GitHub Pages
+  # This only runs for pushes to main branch, not for PRs
   deploy:
+    # This job depends on the build job completing successfully
     needs: build-and-deploy
+    
+    # Only deploy on pushes to main branch, not on pull requests
     if: github.ref == 'refs/heads/main'
-
+    
+    # Required permissions for GitHub Pages deployment
+    # These are more restrictive and secure than older versions
     permissions:
-      pages: write
-      id-token: write
-
+      pages: write      # Allow writing to GitHub Pages
+      id-token: write   # Allow writing identity tokens for authentication
+    
+    # Configure the deployment environment
+    # This provides better visibility and control over deployments
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
-
+    
     runs-on: ubuntu-latest
     steps:
+      # Deploy to GitHub Pages using the uploaded artifact
+      # v4 includes improved error handling and rollback capabilities
       - name: Deploy to GitHub Pages
         id: deployment
-        uses: actions/deploy-pages@v2
+        uses: actions/deploy-pages@v4
